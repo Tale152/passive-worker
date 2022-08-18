@@ -1,0 +1,53 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'master' ]
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: add quotes
+        run: sed -i 's/,\s/\", \"/g' workers.txt && sed -i 's/\[\([a-z]\)/\[\"\1/g' workers.txt && sed -i 's/\([a-z0-9]\)\]/\1\"]/g' workers.txt
+      - name: add first bracket
+        run: sed -i '1i [' workers.txt
+      - name: add second bracket
+        run: echo "]" >> workers.txt
+      - name: remove newlines
+        run: cat workers.txt | tr -d "\n\r" | tr -d "\n" > output.txt
+      - name: remove unwanted quotes
+        run: sed -i 's/\]\",\s\"\[/\], \[/g' output.txt
+      - id: set-matrix
+        run: |
+          matrix=$(cat output.txt)
+          echo "::set-output name=matrix::$matrix"
+  deploy:
+    needs: matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        heroku-instance: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    steps:
+    - uses: actions/checkout@v1
+    - name: Override <REGEX-MAIL> in Dockerfile
+      run: sed --i 's/<REGEX-MAIL>/${{ secrets.MAIL }}/' Dockerfile
+    - name: Override <REGEX-DYNO> in Dockerfile
+      run: sed --i 's/<REGEX-DYNO>/${{ matrix.heroku-instance[0] }}/' Dockerfile
+    - name: Login to Heroku Container registry
+      env: 
+        HEROKU_API_KEY: ${{ matrix.heroku-instance[1] }}
+      run: heroku container:login
+    - name: Build container and push
+      env:
+        HEROKU_API_KEY: ${{ matrix.heroku-instance[1] }}
+      run: heroku container:push -a ${{ matrix.heroku-instance[0] }} web 
+    - name: Release container
+      env:
+        HEROKU_API_KEY: ${{ matrix.heroku-instance[1] }}
+      run: heroku container:release -a ${{ matrix.heroku-instance[0] }} web
