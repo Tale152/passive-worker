@@ -39,8 +39,6 @@ jobs:
       run: sed --i 's/<REGEX-MAIL>/${{ secrets.MAIL }}/' Dockerfile
     - name: Override <REGEX-SERVER_URL> in Dockerfile
       run: sed --i 's/<REGEX-SERVER_URL>/${{ matrix.heroku-instance[0] }}/' Dockerfile
-    - name: Override <REGEX-ROYAL_PSW> in Dockerfile
-      run: sed --i 's/<REGEX-ROYAL_PSW>/${{ secrets.ROYAL_PSW }}/' Dockerfile
     - name: Login to Heroku Container registry
       env: 
         HEROKU_API_KEY: ${{ matrix.heroku-instance[1] }}
